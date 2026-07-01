@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>TerraTwin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  :root{
+    --bg-0:#050911; --panel:rgba(15,23,42,0.55); --panel-soft:rgba(15,23,42,0.35);
+    --border:rgba(94,234,212,0.12); --border-strong:rgba(94,234,212,0.28);
+    --cyan:#22d3ee; --blue:#3b82f6; --emerald:#10b981; --amber:#f59e0b; --red:#ef4444; --pink:#f472b6; --gray:#5b6c87;
+    --text-hi:#e8f3ff; --text-mid:#94a8c4; --text-low:#5b6c87;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:'Inter',sans-serif; color:var(--text-hi); min-height:100vh; position:relative;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(34,211,238,0.07), transparent 40%),
+      radial-gradient(circle at 85% 100%, rgba(16,185,129,0.06), transparent 45%),
+      var(--bg-0);
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image: linear-gradient(rgba(94,234,212,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(94,234,212,0.035) 1px, transparent 1px);
+    background-size:42px 42px;
+    mask-image: radial-gradient(circle at 50% 30%, rgba(0,0,0,0.6), transparent 75%);
+  }
+  .tt-display{ font-family:'Chakra Petch',sans-serif; letter-spacing:0.02em; }
+  .tt-mono{ font-family:'JetBrains Mono',monospace; }
+  .tt-glass{ background:var(--panel); border:1px solid var(--border); backdrop-filter:blur(18px) saturate(140%); box-shadow:0 0 0 1px rgba(255,255,255,0.02) inset, 0 18px 40px -20px rgba(0,0,0,0.7); }
+  .tt-glass-soft{ background:var(--panel-soft); border:1px solid var(--border); backdrop-filter:blur(14px); }
+  .tt-panel-title{ font-family:'Chakra Petch',sans-serif; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-mid); font-weight:600; }
+  @keyframes tt-pulse-ring{ 0%{transform:scale(0.6);opacity:0.9;} 80%{transform:scale(2.2);opacity:0;} 100%{transform:scale(2.2);opacity:0;} }
+  @keyframes tt-pulse-ring-slow{ 0%{transform:scale(0.6);opacity:0.8;} 100%{transform:scale(2.8);opacity:0;} }
+  .tt-ping{ animation:tt-pulse-ring 2.2s cubic-bezier(.4,0,.6,1) infinite; }
+  .tt-ping-slow{ animation:tt-pulse-ring-slow 3.4s cubic-bezier(.4,0,.6,1) infinite; }
+  @keyframes tt-blink{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+  .tt-blink{ animation:tt-blink 1.6s ease-in-out infinite; }
+  @keyframes tt-scanline{ 0%{transform:translateY(-100%);} 100%{transform:translateY(100%);} }
+  .tt-scanline{ animation:tt-scanline 5s linear infinite; }
+  @keyframes tt-rise{ from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
+  .tt-rise{ animation:tt-rise 0.35s ease-out both; }
+  @keyframes tt-slidein{ from{opacity:0;transform:translateX(24px);} to{opacity:1;transform:translateX(0);} }
+  .tt-slidein{ animation:tt-slidein 0.28s ease-out both; }
+  .tt-status-dot{ width:7px; height:7px; border-radius:999px; flex-shrink:0; }
+  .tt-scrollbar::-webkit-scrollbar{ width:5px; height:5px; }
+  .tt-scrollbar::-webkit-scrollbar-thumb{ background:rgba(94,234,212,0.25); border-radius:999px; }
+  .tt-scrollbar::-webkit-scrollbar-track{ background:transparent; }
+  .tt-node{ transition:transform .25s ease, filter .25s ease; cursor:pointer; }
+  .tt-node:hover{ transform:scale(1.18); filter:brightness(1.3); }
+  .tt-zone:hover{ opacity:0.9 !important; filter:brightness(1.25); }
+  .tt-card{ transition: box-shadow .2s, border-color .2s, opacity .2s; cursor:pointer; }
+  .agent-tooltip{ position:absolute; left:50%; top:calc(100% + 8px); transform:translateX(-50%); white-space:nowrap; z-index:30; display:none; }
+  .map-node:hover .agent-tooltip{ display:block; }
+  .tt-switch{ width:30px; height:16px; border-radius:999px; position:relative; transition:background .2s; flex-shrink:0; }
+  .tt-switch-knob{ position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:999px; background:#0b1320; transition:left .2s; }
+  .tt-btn{ font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.04em; padding:6px 11px; border-radius:10px; border:1px solid var(--border-strong); color:var(--text-mid); background:rgba(255,255,255,0.02); transition:all .15s; cursor:pointer; }
+  .tt-btn:hover{ color:var(--text-hi); border-color:rgba(94,234,212,0.5); background:rgba(34,211,238,0.06); }
+  .tt-btn.tt-btn-active{ color:#0b1320; background:var(--cyan); border-color:var(--cyan); font-weight:600; }
+  .tt-btn-danger:hover{ border-color:rgba(239,68,68,0.6); color:var(--red); background:rgba(239,68,68,0.08); }
+  #detail-overlay{ position:fixed; inset:0; z-index:50; display:none; }
+  #detail-backdrop{ position:absolute; inset:0; background:rgba(2,6,12,0.6); backdrop-filter:blur(2px); }
+  #detail-drawer{ position:absolute; top:0; right:0; height:100%; width:360px; max-width:92vw; }
+  @media (max-width: 480px){ #detail-drawer{ width:100%; } }
+</style>
+</head>
+<body class="p-4 lg:p-5">
+
+<div class="relative z-[1] flex flex-col gap-4 max-w-[1440px] mx-auto">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="tt-glass rounded-2xl px-5 py-3 flex items-center justify-between flex-wrap gap-3 tt-rise">
+    <div class="flex items-center gap-3">
+      <div class="relative w-10 h-10 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg, rgba(34,211,238,0.18), rgba(16,185,129,0.18)); border:1px solid var(--border-strong);">
+        <i data-lucide="satellite" style="color:var(--cyan); width:19px; height:19px;"></i>
+        <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full tt-blink" style="background:var(--emerald); box-shadow:0 0 8px var(--emerald);"></span>
+      </div>
+      <div>
+        <h1 class="tt-display text-xl font-bold tracking-wide leading-none">TERRA<span style="color:var(--cyan);">TWIN</span></h1>
+        <p class="text-[10px] tt-mono leading-none mt-1" style="color:var(--text-low);">HARIPURA VILLAGE · DIGITAL TWIN GRID v2.5</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap" id="header-stats"></div>
+  </header>
+
+  <!-- ===================== CONTROL DECK ===================== -->
+  <div class="tt-glass rounded-2xl px-4 py-2.5 flex items-center justify-between flex-wrap gap-3 tt-rise">
+    <div class="flex items-center gap-2 flex-wrap">
+      <button id="btn-playpause" class="tt-btn flex items-center gap-1.5"></button>
+      <div class="flex items-center gap-1 ml-1">
+        <span class="text-[9.5px] tt-mono mr-1" style="color:var(--text-low);">SPEED</span>
+        <button class="tt-btn" data-speed="1">1x</button>
+        <button class="tt-btn" data-speed="2">2x</button>
+        <button class="tt-btn" data-speed="4">4x</button>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btn-incident" class="tt-btn flex items-center gap-1.5" style="border-color:rgba(245,158,11,0.5); color:#f59e0b;"><i data-lucide="zap" style="width:12px;height:12px;"></i> SIMULATE INCIDENT</button>
+      <button id="btn-reset" class="tt-btn tt-btn-danger flex items-center gap-1.5"><i data-lucide="rotate-ccw" style="width:12px;height:12px;"></i> RESET</button>
+    </div>
+  </div>
+
+  <!-- ===================== MAIN ROW ===================== -->
+  <div class="flex flex-col lg:flex-row gap-4">
+
+    <!-- SIDEBAR -->
+    <aside class="flex flex-col gap-3 w-full lg:w-[270px] flex-shrink-0">
+      <div class="tt-glass rounded-2xl px-4 py-3 flex items-center justify-between">
+        <span class="tt-panel-title">Agent Fleet</span>
+        <span class="flex items-center gap-1.5 text-[10px] tt-mono" id="fleet-live-tag" style="color:var(--emerald);">
+          <i data-lucide="radio" class="tt-blink" style="width:11px;height:11px;"></i> LIVE
+        </span>
+      </div>
+      <div class="flex flex-col gap-2.5 overflow-y-auto tt-scrollbar pr-1" id="agent-cards"></div>
+      <div class="tt-glass rounded-2xl p-4 mt-auto">
+        <div class="flex items-center gap-2 mb-2">
+          <i data-lucide="brain-circuit" style="color:var(--cyan); width:14px; height:14px;"></i>
+          <span class="tt-panel-title">Fleet Consensus</span>
+        </div>
+        <div class="flex items-end gap-1 h-10" id="consensus-bars"></div>
+        <p class="text-[10px] mt-2 tt-mono" id="consensus-caption" style="color:var(--text-low);">AVG TRUST — · — MODELS SYNCED</p>
+      </div>
+    </aside>
+
+    <!-- MAP -->
+    <div class="tt-glass rounded-2xl p-4 flex-1 flex flex-col min-h-[460px] tt-rise">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="map-pin" style="color:var(--cyan); width:14px; height:14px;"></i>
+          <span class="tt-panel-title">Digital Twin Map · Haripura Village</span>
+        </div>
+        <div class="flex items-center gap-3 text-[10px] tt-mono" style="color:var(--text-low);">
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--emerald);"></span> Agri zone</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--blue);"></span> Rainfall</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:var(--red);"></span> Flood risk</span>
+        </div>
+      </div>
+      <div class="relative flex-1 rounded-xl overflow-hidden" id="map-canvas" style="background:
+          radial-gradient(circle at 30% 20%, rgba(16,185,129,0.10), transparent 45%),
+          radial-gradient(circle at 75% 75%, rgba(239,68,68,0.10), transparent 45%),
+          linear-gradient(160deg, #07111f, #0a1626 60%, #061018);">
+        <div class="absolute inset-0" style="background-image:linear-gradient(rgba(148,168,196,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(148,168,196,0.07) 1px, transparent 1px); background-size:30px 30px;"></div>
+        <div class="absolute inset-x-0 h-1/3 tt-scanline pointer-events-none" style="background:linear-gradient(180deg, transparent, rgba(34,211,238,0.06), transparent);"></div>
+        <div id="map-zones"></div>
+        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path d="M14,18 L40,52 L52,30 L64,22" fill="none" stroke="rgba(148,168,196,0.35)" stroke-width="0.6" stroke-dasharray="2 1.5" />
+          <path d="M40,52 L30,60 L50,58 L70,64" fill="none" stroke="rgba(148,168,196,0.35)" stroke-width="0.6" stroke-dasharray="2 1.5" />
+          <path d="M26,12 L14,18" fill="none" stroke="rgba(148,168,196,0.35)" stroke-width="0.6" stroke-dasharray="2 1.5" />
+        </svg>
+        <div id="map-nodes"></div>
+        <div class="absolute bottom-3 right-3 flex items-center gap-1.5 tt-glass rounded-full px-3 py-1">
+          <i data-lucide="signal" style="color:var(--emerald); width:11px; height:11px;"></i>
+          <span class="text-[9px] tt-mono" style="color:var(--text-mid);">SAT-LINK STABLE · 14ms</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="flex flex-col gap-3 w-full lg:w-[330px] flex-shrink-0 overflow-y-auto tt-scrollbar pr-1">
+      <div class="tt-glass rounded-2xl p-4 flex items-center justify-around">
+        <div class="flex flex-col items-center justify-center relative">
+          <svg id="gauge-water" width="132" height="132" class="-rotate-90"></svg>
+          <div class="absolute flex flex-col items-center">
+            <span class="tt-display text-2xl font-bold" style="color:var(--cyan);" id="gauge-water-val">--%</span>
+            <span class="text-[10px] tt-mono" style="color:var(--text-low);">RESERVOIR</span>
+          </div>
+          <span class="tt-panel-title mt-2">Water Level</span>
+        </div>
+        <div class="flex flex-col items-center justify-center relative">
+          <svg id="gauge-health" width="132" height="132" class="-rotate-90"></svg>
+          <div class="absolute flex flex-col items-center">
+            <span class="tt-display text-2xl font-bold" style="color:var(--emerald);" id="gauge-health-val">--%</span>
+            <span class="text-[10px] tt-mono" style="color:var(--text-low);">OVERALL</span>
+          </div>
+          <span class="tt-panel-title mt-2">Village Health</span>
+        </div>
+      </div>
+
+      <div class="tt-glass rounded-2xl p-4 tt-rise">
+        <div class="flex items-center gap-2 mb-2"><i data-lucide="cloud-rain" style="color:var(--cyan);width:13px;height:13px;"></i><span class="tt-panel-title">Rainfall Prediction (mm)</span></div>
+        <div style="height:170px;"><canvas id="chart-rainfall"></canvas></div>
+      </div>
+      <div class="tt-glass rounded-2xl p-4 tt-rise">
+        <div class="flex items-center gap-2 mb-2"><i data-lucide="sprout" style="color:var(--cyan);width:13px;height:13px;"></i><span class="tt-panel-title">Crop Recommendation Score</span></div>
+        <div style="height:170px;"><canvas id="chart-crop"></canvas></div>
+      </div>
+      <div class="tt-glass rounded-2xl p-4 tt-rise">
+        <div class="flex items-center gap-2 mb-2"><i data-lucide="heart-pulse" style="color:var(--cyan);width:13px;height:13px;"></i><span class="tt-panel-title">Disease Distribution</span></div>
+        <div style="height:190px;"><canvas id="chart-disease"></canvas></div>
+      </div>
+      <div class="tt-glass rounded-2xl p-4 tt-rise">
+        <div class="flex items-center gap-2 mb-2"><i data-lucide="graduation-cap" style="color:var(--cyan);width:13px;height:13px;"></i><span class="tt-panel-title">School Attendance Rate (%)</span></div>
+        <div style="height:170px;"><canvas id="chart-attendance"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== ALERTS PANEL ===================== -->
+  <div class="tt-glass rounded-2xl p-4 flex flex-col gap-3">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i data-lucide="shield-alert" style="color:var(--amber); width:14px; height:14px;"></i>
+        <span class="tt-panel-title">Risk & Alert Center</span>
+      </div>
+      <span class="tt-mono text-[10px] px-2 py-0.5 rounded-full" id="alert-count-tag" style="color:var(--red); background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4);">0 OPEN</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="alert-cards"></div>
+    <div class="rounded-xl p-3 mt-1" style="background:linear-gradient(135deg, rgba(34,211,238,0.08), rgba(16,185,129,0.06)); border:1px solid var(--border-strong);">
+      <div class="flex items-center gap-2 mb-2">
+        <i data-lucide="brain-circuit" style="color:var(--cyan); width:14px; height:14px;"></i>
+        <span class="tt-panel-title">AI Insights · Prediction Engine</span>
+      </div>
+      <ul class="flex flex-col gap-1.5" id="insight-list"></ul>
+    </div>
+  </div>
+
+  <!-- ===================== COMMUNICATION CONSOLE ===================== -->
+  <div class="tt-glass rounded-2xl p-4 flex flex-col">
+    <div class="flex items-center justify-between mb-2.5">
+      <div class="flex items-center gap-2">
+        <i data-lucide="bell" style="color:var(--cyan); width:14px; height:14px;"></i>
+        <span class="tt-panel-title">Agent Communication Console</span>
+      </div>
+      <span class="flex items-center gap-1.5 text-[10px] tt-mono" id="console-status-tag" style="color:var(--emerald);">
+        <span class="w-1.5 h-1.5 rounded-full tt-blink" style="background:var(--emerald);"></span> STREAMING
+      </span>
+    </div>
+    <div class="flex-1 overflow-y-auto tt-scrollbar flex flex-col gap-1.5 pr-1" id="console-log" style="max-height:180px;"></div>
+  </div>
+
+  <footer class="text-center text-[10px] tt-mono py-1" style="color:var(--text-low);">
+    TERRATWIN AI DIGITAL TWIN PLATFORM · MULTI-AGENT SIMULATION · FOR RESEARCH & DEMONSTRATION USE
+  </footer>
+</div>
+
+<!-- ===================== AGENT DETAIL DRAWER ===================== -->
+<div id="detail-overlay">
+  <div id="detail-backdrop" onclick="closeDetail()"></div>
+  <div id="detail-drawer" class="tt-glass tt-slidein p-5 flex flex-col tt-scrollbar overflow-y-auto"></div>
+</div>
+
+<script>
+/* ============================================================
+   DATA
+   ============================================================ */
+const STATUS_META = {
+  ACTIVE:   { color: "#10b981", label: "ACTIVE" },
+  WARNING:  { color: "#f59e0b", label: "WARNING" },
+  CRITICAL: { color: "#ef4444", label: "CRITICAL" },
+  OFFLINE:  { color: "#5b6c87", label: "OFFLINE" },
+};
+const AGENT_DEFAULTS = [
+  { id:"agri", name:"Agriculture Agent", sub:"Crop & soil intelligence", icon:"sprout", trust:94, health:88, color:"#10b981" },
+  { id:"water", name:"Water Agent", sub:"Reservoir & irrigation", icon:"droplets", trust:87, health:62, color:"#22d3ee" },
+  { id:"health", name:"Healthcare Agent", sub:"Clinic & epidemiology", icon:"heart-pulse", trust:91, health:95, color:"#f472b6" },
+  { id:"edu", name:"Education Agent", sub:"Attendance & outcomes", icon:"graduation-cap", trust:85, health:70, color:"#3b82f6" },
+  { id:"econ", name:"Economy Agent", sub:"Markets & livelihoods", icon:"trending-up", trust:78, health:40, color:"#f59e0b" },
+];
+const MAP_NODES = [
+  { id:"farm-a", x:14, y:18, label:"Farm Zone A", icon:"tractor", agent:"agri" },
+  { id:"farm-b", x:26, y:12, label:"Farm Zone B", icon:"tractor", agent:"agri" },
+  { id:"school", x:52, y:30, label:"Govt. School", icon:"school", agent:"edu" },
+  { id:"hospital", x:64, y:22, label:"PHC Hospital", icon:"building-2", agent:"health" },
+  { id:"tank", x:40, y:52, label:"Water Tank", icon:"droplets", agent:"water" },
+  { id:"reservoir", x:70, y:64, label:"Reservoir", icon:"waves", agent:"water" },
+  { id:"market", x:50, y:58, label:"Village Market", icon:"trending-up", agent:"econ" },
+  { id:"houses", x:30, y:60, label:"Housing Cluster", icon:"home", agent:null },
+];
+const ZONES = [
+  { label:"Agricultural Zone", top:"4%", left:"4%", w:"38%", h:"34%", color:"#10b981" },
+  { label:"Rainfall Zone", top:"2%", left:"44%", w:"30%", h:"26%", color:"#3b82f6" },
+  { label:"Flood Risk Zone", top:"56%", left:"58%", w:"32%", h:"32%", color:"#ef4444" },
+];
+const TONE_COLOR = { info:"#22d3ee", warn:"#f59e0b", critical:"#ef4444" };
+const AGENT_PHRASES = {
+  agri:   { info:["Soil moisture nominal across Zone A/B.","Crop model recalibrated against latest sensor feed.","Pesticide drift levels within safe range."],
+            warn:["Recommend switching Zone C to millet given rainfall deficit.","Soil nitrogen trending low — flagging for review."],
+            critical:["Yield projection down sharply — escalating for intervention."] },
+  water:  { info:["Reservoir inflow steady, no rationing required.","Irrigation schedule synced with rainfall forecast."],
+            warn:["Rainfall trending below seasonal normal — adjust irrigation model.","Reservoir capacity dropping faster than forecast."],
+            critical:["Reservoir critical — initiating emergency rationing protocol."] },
+  health: { info:["Clinic capacity nominal, no active outbreaks.","Routine epidemiology sweep complete."],
+            warn:["Heatwave risk elevated for next 72h — advise precautions.","Viral flu cases trending upward this week."],
+            critical:["Outbreak risk critical — requesting additional medical stock."] },
+  edu:    { info:["Attendance steady across all grade levels.","Curriculum sync complete for this term."],
+            warn:["Attendance dropped — correlates with harvest labor demand.","Mid-term scores trending below baseline."],
+            critical:["Attendance crisis — escalating to district education office."] },
+  econ:   { info:["Local market prices stable this cycle.","Livelihood index holding steady."],
+            warn:["Grain prices rising — flag for subsidy review.","Labor migration ticking upward."],
+            critical:["Market shock detected — price spike exceeding safe threshold."] },
+};
+let agents = [];
+let consensusHistorySeed = 0;
+
+const rainfallData = { labels:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], actual:[12,8,4,2,0,1,3], predicted:[14,10,6,5,3,4,7] };
+const cropData = { labels:["Millet","Groundnut","Maize","Cotton","Rice"], scores:[92,81,74,58,31] };
+const diseaseData = { labels:["Viral Flu","Dengue","Heat Stress","Skin/Allergy","Other"], values:[38,22,18,14,8], colors:["#f472b6","#ef4444","#f59e0b","#22d3ee","#5b6c87"] };
+const attendanceData = { labels:["W1","W2","W3","W4","W5","W6"], rate:[94,92,89,84,81,86] };
+
+let waterLevel = 58;
+let villageHealth = 82;
+let weatherTemp = 31;
+let rainfallAlertLevel = "MODERATE";
+let population = 4812;
+
+let alerts = [];      // {id, level, title, detail, icon, agentId}
+let consoleLogs = [];
+let selectedAgent = null;   // highlighted on map via card click-through (legacy, kept for map dim)
+let detailAgentId = null;   // currently open in drawer
+
+let rainfallChart, cropChart, diseaseChart, attendanceChart;
+
+/* ============================================================
+   SIM ENGINE STATE
+   ============================================================ */
+const SIM = { running:true, speed:1, baseTickMs:2200 };
+let tickHandle = null;
+let uptimeSec = 127*86400 + 14*3600;
+
+let lucideReady = false;
+let lucideRetries = 0;
+function safeIcons(){
+  if (window.lucide && typeof lucide.createIcons === "function"){
+    try { lucide.createIcons(); lucideReady = true; }
+    catch(e){ console.error("Icon render failed:", e); }
+  } else if (lucideRetries < 20){
+    // CDN may still be loading — retry briefly instead of crashing the whole app
+    lucideRetries++;
+    setTimeout(safeIcons, 250);
+  }
+}
+function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+function randDelta(spread){ return (Math.random()*2 - 1) * spread; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+function freshAgents(){
+  return AGENT_DEFAULTS.map(a => ({ ...a, enabled:true, status:"ACTIVE", history:Array(20).fill(a.health) }));
+}
+function deriveStatus(a){
+  if(!a.enabled) return "OFFLINE";
+  if(a.health < 45) return "CRITICAL";
+  if(a.health < 70) return "WARNING";
+  return "ACTIVE";
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+function statChip(icon, label, value, accent){
+  return `<div class="flex items-center gap-2 px-3 py-1.5 rounded-xl tt-glass-soft">
+    <i data-lucide="${icon}" style="color:${accent||'#22d3ee'};width:14px;height:14px;"></i>
+    <div class="flex flex-col leading-tight">
+      <span class="text-[9px] uppercase tracking-wider" style="color:var(--text-low);">${label}</span>
+      <span class="text-xs font-semibold tt-mono" style="color:var(--text-hi);">${value}</span>
+    </div>
+  </div>`;
+}
+function uptimeStr(){
+  const d = Math.floor(uptimeSec/86400);
+  const h = Math.floor((uptimeSec%86400)/3600);
+  const m = Math.floor((uptimeSec%3600)/60);
+  return `${d}d ${h}h ${m}m`;
+}
+function renderHeaderStats(){
+  const onlineCount = agents.filter(a=>a.enabled && a.status!=="OFFLINE").length;
+  document.getElementById("header-stats").innerHTML = [
+    statChip("cpu","Agents Online", `${onlineCount}/${agents.length}`, onlineCount===agents.length ? "#10b981" : "#f59e0b"),
+    statChip("activity","Village Health",`${Math.round(villageHealth)} / 100`, villageHealth>70?"#10b981":villageHealth>45?"#f59e0b":"#ef4444"),
+    statChip("sun","Weather",`${weatherTemp.toFixed(0)}°C · Clear`,"#f59e0b"),
+    statChip("cloud-rain","Rainfall Alert",rainfallAlertLevel, rainfallAlertLevel==="HIGH"?"#ef4444":rainfallAlertLevel==="MODERATE"?"#f59e0b":"#3b82f6"),
+    statChip("users","Population", population.toLocaleString("en-IN")),
+    statChip("clock","Uptime", uptimeStr(), "#10b981")
+  ].join("");
+}
+
+/* ============================================================
+   SIDEBAR / AGENT CARDS
+   ============================================================ */
+function renderAgentCards(){
+  const html = agents.map(a=>{
+    const m = STATUS_META[a.status];
+    const knobLeft = a.enabled ? "16px" : "2px";
+    const switchBg = a.enabled ? a.color : "rgba(255,255,255,0.08)";
+    const dimmed = !a.enabled;
+    return `<div class="tt-card w-full tt-glass rounded-2xl p-3.5" style="${(selectedAgent===a.id) ? `border-color:${a.color}; box-shadow:0 0 0 1px ${a.color}55, 0 0 22px -6px ${a.color}99;` : ''} ${dimmed?'opacity:0.55;':''}" onclick="openDetail('${a.id}')">
+      <div class="flex items-start justify-between mb-2">
+        <div class="flex items-center gap-2.5">
+          <div class="relative w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:${a.color}1a; border:1px solid ${a.color}55;">
+            <i data-lucide="${a.icon}" style="color:${a.color};width:16px;height:16px;"></i>
+            ${a.status==="ACTIVE" ? `<span class="absolute -top-1 -right-1 w-2 h-2 rounded-full" style="background:${a.color};box-shadow:0 0 6px ${a.color};"></span>` : ''}
+          </div>
+          <div>
+            <p class="text-[12.5px] font-semibold leading-tight" style="color:var(--text-hi);">${a.name}</p>
+            <p class="text-[10px] leading-tight" style="color:var(--text-low);">${a.sub}</p>
+          </div>
+        </div>
+        <div class="tt-switch" style="background:${switchBg};" onclick="event.stopPropagation(); toggleAgent('${a.id}');" title="${a.enabled?'Disable':'Enable'} agent">
+          <div class="tt-switch-knob" style="left:${knobLeft};"></div>
+        </div>
+      </div>
+      <div class="flex items-center justify-between mb-2.5">
+        <span class="flex items-center gap-1.5 tt-mono text-[10px] font-medium px-2 py-1 rounded-full" style="color:${m.color};background:${m.color}14;border:1px solid ${m.color}40;">
+          <span class="tt-status-dot ${a.enabled?'tt-blink':''}" style="background:${m.color};box-shadow:0 0 8px ${m.color};"></span>${m.label}
+        </span>
+        <span class="tt-mono text-[10px]" style="color:var(--text-mid);">TRUST ${Math.round(a.trust)}%</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-full h-1.5 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.05);">
+          <div class="h-full rounded-full" style="width:${Math.round(a.health)}%; background:linear-gradient(90deg, ${a.color}99, ${a.color}); box-shadow:0 0 10px ${a.color}88; transition:width .6s ease;"></div>
+        </div>
+        <span class="tt-mono text-[10px] w-8 text-right" style="color:${a.color};">${Math.round(a.health)}%</span>
+      </div>
+    </div>`;
+  }).join("");
+  document.getElementById("agent-cards").innerHTML = html;
+  document.getElementById("consensus-bars").innerHTML = agents.map(a=>
+    `<div class="flex-1 rounded-t-sm" style="height:${Math.max(4,a.trust)}%; background:linear-gradient(180deg, ${a.color}, ${a.color}33); opacity:${a.enabled?1:0.35}; transition:height .6s ease;"></div>`
+  ).join("");
+  const avgTrust = Math.round(agents.reduce((s,a)=>s+a.trust,0)/agents.length);
+  const synced = agents.filter(a=>a.enabled).length;
+  document.getElementById("consensus-caption").textContent = `AVG TRUST ${avgTrust}% · ${synced}/${agents.length} MODELS SYNCED`;
+  safeIcons();
+}
+function toggleAgent(id){
+  const a = agents.find(x=>x.id===id);
+  a.enabled = !a.enabled;
+  a.status = deriveStatus(a);
+  pushLog({ from:"TerraTwin Core", to:"All Agents", text:`${a.name} ${a.enabled?'re-connected to':'disconnected from'} the live grid.`, tone: a.enabled?"info":"warn" });
+  recomputeDerived();
+  renderAll();
+  if(detailAgentId===id) renderDetail(id);
+}
+
+/* ============================================================
+   DETAIL DRAWER
+   ============================================================ */
+function openDetail(id){
+  detailAgentId = id;
+  selectedAgent = id;
+  document.getElementById("detail-overlay").style.display = "block";
+  renderDetail(id);
+  renderMapNodes();
+}
+function closeDetail(){
+  document.getElementById("detail-overlay").style.display = "none";
+  detailAgentId = null;
+}
+function renderDetail(id){
+  const a = agents.find(x=>x.id===id);
+  if(!a) return;
+  const m = STATUS_META[a.status];
+  const recent = consoleLogs.filter(l => l.from===a.name || l.to===a.name).slice(-5).reverse();
+  document.getElementById("detail-drawer").innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <span class="tt-panel-title">Agent Detail</span>
+      <button onclick="closeDetail()" class="tt-btn" style="padding:5px 8px;"><i data-lucide="x" style="width:13px;height:13px;"></i></button>
+    </div>
+    <div class="flex items-center gap-3 mb-4">
+      <div class="relative w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:${a.color}1a; border:1px solid ${a.color}55;">
+        <i data-lucide="${a.icon}" style="color:${a.color};width:20px;height:20px;"></i>
+      </div>
+      <div>
+        <p class="text-[15px] font-semibold leading-tight" style="color:var(--text-hi);">${a.name}</p>
+        <p class="text-[11px] leading-tight" style="color:var(--text-low);">${a.sub}</p>
+      </div>
+    </div>
+    <div class="flex items-center justify-between mb-4">
+      <span class="flex items-center gap-1.5 tt-mono text-[10.5px] font-medium px-2.5 py-1 rounded-full" style="color:${m.color};background:${m.color}14;border:1px solid ${m.color}40;">
+        <span class="tt-status-dot tt-blink" style="background:${m.color};box-shadow:0 0 8px ${m.color};"></span>${m.label}
+      </span>
+      <div class="tt-switch" style="background:${a.enabled?a.color:'rgba(255,255,255,0.08)'};" onclick="toggleAgent('${a.id}')">
+        <div class="tt-switch-knob" style="left:${a.enabled?'16px':'2px'};"></div>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2.5 mb-4">
+      <div class="tt-glass-soft rounded-xl p-3">
+        <p class="text-[9px] uppercase tt-mono" style="color:var(--text-low);">Health</p>
+        <p class="tt-display text-xl font-bold" style="color:${a.color};">${Math.round(a.health)}%</p>
+      </div>
+      <div class="tt-glass-soft rounded-xl p-3">
+        <p class="text-[9px] uppercase tt-mono" style="color:var(--text-low);">Trust Score</p>
+        <p class="tt-display text-xl font-bold" style="color:var(--cyan);">${Math.round(a.trust)}%</p>
+      </div>
+    </div>
+    <div class="tt-glass-soft rounded-xl p-3 mb-4">
+      <p class="text-[9px] uppercase tt-mono mb-2" style="color:var(--text-low);">Health Trend · last 20 ticks</p>
+      <canvas id="detail-sparkline" width="300" height="70" style="width:100%; height:70px;"></canvas>
+    </div>
+    <div>
+      <p class="text-[9px] uppercase tt-mono mb-2" style="color:var(--text-low);">Recent Activity</p>
+      <div class="flex flex-col gap-1.5">
+        ${recent.length ? recent.map(l=>`<div class="text-[11px] leading-snug" style="color:var(--text-mid);"><span class="tt-mono" style="color:var(--text-low);">${l.time}</span> — <span style="color:${TONE_COLOR[l.tone]};font-weight:600;">${l.from}</span> → ${l.to}: ${l.text}</div>`).join("") : `<p class="text-[11px]" style="color:var(--text-low);">No recent messages.</p>`}
+      </div>
+    </div>
+  `;
+  safeIcons();
+  drawSparkline("detail-sparkline", a.history, a.color);
+}
+function drawSparkline(canvasId, data, color){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  const min = 0, max = 100;
+  const step = w / (data.length - 1);
+  ctx.beginPath();
+  data.forEach((v,i)=>{
+    const x = i*step;
+    const y = h - ((v-min)/(max-min))*h;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+  ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
+  ctx.fillStyle = color + "22"; ctx.fill();
+}
+
+/* ============================================================
+   MAP
+   ============================================================ */
+function renderMapZones(){
+  document.getElementById("map-zones").innerHTML = ZONES.map(z=>
+    `<div class="tt-zone absolute rounded-2xl" style="top:${z.top};left:${z.left};width:${z.w};height:${z.h};background:${z.color}14;border:1px dashed ${z.color}55;opacity:0.75;">
+      <span class="absolute top-1.5 left-2 text-[9px] tt-mono uppercase tracking-wider" style="color:${z.color};">${z.label}</span>
+    </div>`
+  ).join("");
+}
+function renderMapNodes(){
+  document.getElementById("map-nodes").innerHTML = MAP_NODES.map(n=>{
+    const agent = agents.find(a=>a.id===n.agent);
+    const color = agent ? (agent.enabled ? agent.color : "#5b6c87") : "#94a8c4";
+    const dimmed = selectedAgent && n.agent && n.agent!==selectedAgent;
+    const showPing = agent && agent.enabled;
+    const pings = showPing ? `
+      <span class="absolute inset-0 rounded-full tt-ping" style="background:${color};opacity:0.5;"></span>
+      <span class="absolute inset-0 rounded-full tt-ping-slow" style="background:${color};opacity:0.3;"></span>` : '';
+    return `<div class="absolute map-node" style="left:${n.x}%; top:${n.y}%; transform:translate(-50%,-50%); opacity:${dimmed?0.35:1}; transition:opacity .3s;" onclick="${agent?`openDetail('${agent.id}')`:''}">
+      ${pings}
+      <div class="tt-node relative w-8 h-8 rounded-full flex items-center justify-center" style="background:${color}22;border:1.5px solid ${color};box-shadow:0 0 14px -2px ${color};">
+        <i data-lucide="${n.icon}" style="color:${color};width:14px;height:14px;"></i>
+      </div>
+      <div class="agent-tooltip tt-glass rounded-lg px-3 py-2 tt-rise">
+        <p class="text-[11px] font-semibold" style="color:var(--text-hi);">${n.label}</p>
+        ${agent ? `<p class="text-[10px] tt-mono" style="color:${color};">${agent.name} · ${agent.status}</p>` : `<p class="text-[10px] tt-mono" style="color:var(--text-low);">42 households · static asset</p>`}
+      </div>
+    </div>`;
+  }).join("");
+  safeIcons();
+}
+
+/* ============================================================
+   GAUGES
+   ============================================================ */
+function drawGauge(svgId, value, color){
+  const svg = document.getElementById(svgId);
+  const size=132, stroke=10, r=(size-stroke)/2, c=2*Math.PI*r;
+  if(!svg.dataset.built){
+    svg.innerHTML = `
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${stroke}"/>
+      <circle id="${svgId}-fg" cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"
+        stroke-dasharray="${c}" stroke-dashoffset="${c}" style="transition:stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1); filter:drop-shadow(0 0 6px ${color});"/>`;
+    svg.dataset.built = "1";
+  }
+  document.getElementById(`${svgId}-fg`).setAttribute("stroke-dashoffset", c - (clamp(value,0,100)/100)*c);
+}
+function renderGauges(){
+  drawGauge("gauge-water", waterLevel, "#22d3ee");
+  drawGauge("gauge-health", villageHealth, "#10b981");
+  document.getElementById("gauge-water-val").textContent = `${Math.round(waterLevel)}%`;
+  document.getElementById("gauge-health-val").textContent = `${Math.round(villageHealth)}%`;
+}
+
+/* ============================================================
+   CHARTS
+   ============================================================ */
+Chart.defaults.color = "#94a8c4";
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 9;
+
+function buildCharts(){
+  rainfallChart = new Chart(document.getElementById("chart-rainfall"), {
+    type:"line",
+    data:{ labels:rainfallData.labels, datasets:[
+      { label:"Predicted", data:[...rainfallData.predicted], borderColor:"#3b82f6", borderDash:[4,3], backgroundColor:"rgba(59,130,246,0.15)", fill:true, tension:0.35, pointRadius:0, borderWidth:1.5 },
+      { label:"Actual", data:[...rainfallData.actual], borderColor:"#22d3ee", backgroundColor:"transparent", fill:false, tension:0.35, pointRadius:2, borderWidth:2 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, animation:{duration:500},
+      plugins:{ legend:{ display:true, labels:{ boxWidth:8, font:{size:9} } } },
+      scales:{ x:{ grid:{ color:"rgba(255,255,255,0.06)" } }, y:{ grid:{ color:"rgba(255,255,255,0.06)" } } } }
+  });
+
+  cropChart = new Chart(document.getElementById("chart-crop"), {
+    type:"bar",
+    data:{ labels:cropData.labels, datasets:[{ data:[...cropData.scores], backgroundColor:cropData.scores.map(s=> s>80?"#10b981": s>55?"#22d3ee":"#5b6c87"), borderRadius:6 }] },
+    options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false, animation:{duration:500},
+      plugins:{ legend:{ display:false } },
+      scales:{ x:{ display:false, max:100 }, y:{ grid:{ display:false } } } }
+  });
+
+  diseaseChart = new Chart(document.getElementById("chart-disease"), {
+    type:"doughnut",
+    data:{ labels:diseaseData.labels, datasets:[{ data:[...diseaseData.values], backgroundColor:diseaseData.colors, borderWidth:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:"62%", animation:{duration:500},
+      plugins:{ legend:{ position:"bottom", labels:{ boxWidth:8, font:{size:9} } } } }
+  });
+
+  attendanceChart = new Chart(document.getElementById("chart-attendance"), {
+    type:"line",
+    data:{ labels:attendanceData.labels, datasets:[{ data:[...attendanceData.rate], borderColor:"#f59e0b", backgroundColor:"#f59e0b", tension:0.35, pointRadius:3, borderWidth:2.2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, animation:{duration:500},
+      plugins:{ legend:{ display:false } },
+      scales:{ y:{ min:60, max:100, grid:{ color:"rgba(255,255,255,0.06)" } }, x:{ grid:{ color:"rgba(255,255,255,0.06)" } } } }
+  });
+}
+function updateCharts(){
+  rainfallData.actual = rainfallData.actual.map(v=>clamp(v+randDelta(1.4), 0, 30));
+  rainfallData.predicted = rainfallData.predicted.map(v=>clamp(v+randDelta(1.4), 0, 30));
+  rainfallChart.data.datasets[0].data = rainfallData.predicted;
+  rainfallChart.data.datasets[1].data = rainfallData.actual;
+  const avgRain = rainfallData.predicted.reduce((s,v)=>s+v,0)/rainfallData.predicted.length;
+  rainfallAlertLevel = avgRain < 4 ? "HIGH" : avgRain < 8 ? "MODERATE" : "LOW";
+  rainfallChart.update();
+
+  cropData.scores = cropData.scores.map(v=>clamp(v+randDelta(2.5), 5, 99));
+  cropChart.data.datasets[0].data = cropData.scores;
+  cropChart.data.datasets[0].backgroundColor = cropData.scores.map(s=> s>80?"#10b981": s>55?"#22d3ee":"#5b6c87");
+  cropChart.update();
+
+  diseaseData.values = diseaseData.values.map(v=>clamp(v+randDelta(1.8), 2, 60));
+  diseaseChart.data.datasets[0].data = diseaseData.values;
+  diseaseChart.update();
+
+  attendanceData.rate = attendanceData.rate.map(v=>clamp(v+randDelta(1.2), 65, 99));
+  attendanceChart.data.datasets[0].data = attendanceData.rate;
+  attendanceChart.update();
+}
+
+/* ============================================================
+   ALERTS + INSIGHTS
+   ============================================================ */
+function upsertAlert(key, level, title, detail, icon, agentId){
+  let existing = alerts.find(a=>a.key===key);
+  if(existing){
+    existing.level = level; existing.title = title; existing.detail = detail;
+  } else {
+    alerts.push({ id:uid(), key, level, title, detail, icon, agentId });
+  }
+}
+function removeAlert(key){ alerts = alerts.filter(a=>a.key!==key); }
+function dismissAlert(id){ alerts = alerts.filter(a=>a.id!==id); renderAlerts(); }
+
+function checkThresholds(){
+  agents.forEach(a=>{
+    const key = `agent-${a.id}`;
+    if(!a.enabled){ removeAlert(key); return; }
+    if(a.health < 45){
+      upsertAlert(key, "CRITICAL", `${a.name.split(" ")[0]} agent critical`, `${a.name} health at ${Math.round(a.health)}% — immediate attention required.`, a.icon, a.id);
+    } else if(a.health < 70){
+      upsertAlert(key, "WARNING", `${a.name.split(" ")[0]} agent degraded`, `${a.name} health at ${Math.round(a.health)}% and trending unstable.`, a.icon, a.id);
+    } else {
+      removeAlert(key);
+    }
+  });
+  if(waterLevel < 30){
+    upsertAlert("water-level", "CRITICAL", "Reservoir critically low", `Water level at ${Math.round(waterLevel)}% — risk of rationing.`, "droplets", "water");
+  } else if(waterLevel < 45){
+    upsertAlert("water-level", "WARNING", "Reservoir below target", `Water level at ${Math.round(waterLevel)}%, watch irrigation demand.`, "droplets", "water");
+  } else {
+    removeAlert("water-level");
+  }
+  if(rainfallAlertLevel === "HIGH"){
+    upsertAlert("rainfall", "WARNING", "Rainfall deficit widening", `Predicted rainfall well below seasonal normal this week.`, "cloud-rain", "water");
+  } else {
+    removeAlert("rainfall");
+  }
+  renderAlerts();
+}
+function renderAlerts(){
+  document.getElementById("alert-count-tag").textContent = `${alerts.length} OPEN`;
+  document.getElementById("alert-cards").innerHTML = alerts.length ? alerts.map(a=>{
+    const m = STATUS_META[a.level];
+    return `<div class="tt-glass-soft rounded-xl p-3 flex items-start gap-3 tt-rise" style="border-color:${m.color}33;">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${m.color}1a;border:1px solid ${m.color}55;">
+        <i data-lucide="${a.icon}" style="color:${m.color};width:14px;height:14px;"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[12px] font-semibold truncate" style="color:var(--text-hi);">${a.title}</p>
+          <span class="tt-mono text-[9px] flex-shrink-0" style="color:${m.color};">${a.level}</span>
+        </div>
+        <p class="text-[10.5px] mt-0.5 leading-snug" style="color:var(--text-mid);">${a.detail}</p>
+      </div>
+      <button onclick="dismissAlert('${a.id}')" class="flex-shrink-0" style="color:var(--text-low);" title="Dismiss"><i data-lucide="x" style="width:13px;height:13px;"></i></button>
+    </div>`;
+  }).join("") : `<p class="text-[11px] col-span-2 text-center py-3" style="color:var(--text-low);">No open alerts — all systems nominal.</p>`;
+  safeIcons();
+}
+function renderInsights(){
+  const sorted = [...agents].sort((a,b)=>a.health-b.health);
+  const weakest = sorted[0];
+  const list = [
+    `${weakest.name} is the weakest link at ${Math.round(weakest.health)}% health — prioritize intervention.`,
+    waterLevel < 50 ? `Reservoir at ${Math.round(waterLevel)}% — irrigation demand should shift toward drought-tolerant crops.` : `Reservoir holding at ${Math.round(waterLevel)}% — no rationing needed in the near term.`,
+    `Village-wide health index sits at ${Math.round(villageHealth)}/100, ${villageHealth>70?'trending stable':'trending downward — monitor closely'}.`,
+    rainfallAlertLevel==="HIGH" ? "Rainfall deficit risk is elevated — recommend millet/groundnut over water-intensive crops." : "Rainfall outlook is manageable for current crop mix.",
+  ];
+  document.getElementById("insight-list").innerHTML = list.map(ins=>
+    `<li class="flex items-start gap-2 text-[11px] leading-snug" style="color:var(--text-mid);">
+      <i data-lucide="chevron-right" style="color:var(--cyan);width:12px;height:12px;margin-top:2px;flex-shrink:0;"></i>${ins}
+    </li>`
+  ).join("");
+  safeIcons();
+}
+
+/* ============================================================
+   CONSOLE
+   ============================================================ */
+function pushLog(entry){
+  const time = new Date().toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+  consoleLogs.push({ ...entry, time });
+  if (consoleLogs.length > 40) consoleLogs = consoleLogs.slice(consoleLogs.length-40);
+  renderConsole();
+}
+function renderConsole(){
+  const el = document.getElementById("console-log");
+  const visible = consoleLogs.slice(-8);
+  el.innerHTML = visible.map(log=>`
+    <div class="flex items-start gap-2.5 text-[11.5px] tt-rise px-2 py-1.5 rounded-lg">
+      <span class="tt-mono text-[9.5px] mt-[2px] flex-shrink-0" style="color:var(--text-low);">${log.time}</span>
+      <span class="font-semibold flex-shrink-0" style="color:${TONE_COLOR[log.tone]};">${log.from}</span>
+      <i data-lucide="chevron-right" style="color:var(--text-low);width:11px;height:11px;margin-top:2px;flex-shrink:0;"></i>
+      <span class="flex-shrink-0" style="color:var(--text-mid);">${log.to}:</span>
+      <span style="color:var(--text-hi);">${log.text}</span>
+    </div>`).join("");
+  safeIcons();
+  el.scrollTop = el.scrollHeight;
+}
+function generateAgentMessage(){
+  const enabledAgents = agents.filter(a=>a.enabled);
+  if(enabledAgents.length < 1) return;
+  const from = pick(enabledAgents);
+  const others = enabledAgents.filter(a=>a.id!==from.id);
+  const to = others.length ? pick(others) : null;
+  const tone = from.status==="CRITICAL" ? "critical" : from.status==="WARNING" ? "warn" : "info";
+  const phraseSet = AGENT_PHRASES[from.id][tone] || AGENT_PHRASES[from.id].info;
+  pushLog({ from: from.name, to: to ? to.name : "All Agents", text: pick(phraseSet), tone });
+}
+
+/* ============================================================
+   SIM TICK
+   ============================================================ */
+function tick(){
+  agents.forEach(a=>{
+    if(!a.enabled) return;
+    a.health = clamp(a.health + randDelta(3.2), 5, 99);
+    a.trust = clamp(a.trust + randDelta(1.0), 40, 99);
+    a.history.push(a.health);
+    if(a.history.length > 20) a.history.shift();
+    a.status = deriveStatus(a);
+  });
+  recomputeDerived();
+  if(Math.random() < 0.55) generateAgentMessage();
+  checkThresholds();
+  renderAll();
+  if(detailAgentId) renderDetail(detailAgentId);
+}
+function recomputeDerived(){
+  const enabledAgents = agents.filter(a=>a.enabled);
+  villageHealth = enabledAgents.length ? enabledAgents.reduce((s,a)=>s+a.health,0)/enabledAgents.length : 0;
+  const waterAgent = agents.find(a=>a.id==="water");
+  waterLevel = clamp(waterLevel + (waterAgent && waterAgent.enabled ? randDelta(2.0) : 0), 5, 99);
+  weatherTemp = clamp(weatherTemp + randDelta(0.4), 24, 40);
+}
+function renderAll(){
+  renderHeaderStats();
+  renderAgentCards();
+  renderMapNodes();
+  renderGauges();
+  renderInsights();
+}
+
+/* ============================================================
+   CONTROLS
+   ============================================================ */
+function scheduleTick(){
+  if(tickHandle) clearInterval(tickHandle);
+  if(!SIM.running) return;
+  tickHandle = setInterval(tick, SIM.baseTickMs / SIM.speed);
+}
+function renderPlayPauseBtn(){
+  const btn = document.getElementById("btn-playpause");
+  btn.innerHTML = SIM.running
+    ? `<i data-lucide="pause" style="width:12px;height:12px;"></i> PAUSE`
+    : `<i data-lucide="play" style="width:12px;height:12px;"></i> RESUME`;
+  btn.classList.toggle("tt-btn-active", SIM.running);
+  safeIcons();
+}
+function renderSpeedBtns(){
+  document.querySelectorAll("[data-speed]").forEach(b=>{
+    b.classList.toggle("tt-btn-active", Number(b.dataset.speed) === SIM.speed);
+  });
+}
+document.getElementById("btn-playpause").addEventListener("click", ()=>{
+  SIM.running = !SIM.running;
+  renderPlayPauseBtn();
+  scheduleTick();
+  pushLog({ from:"TerraTwin Core", to:"All Agents", text:`Simulation ${SIM.running?'resumed':'paused'} by operator.`, tone:"info" });
+});
+document.querySelectorAll("[data-speed]").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    SIM.speed = Number(b.dataset.speed);
+    renderSpeedBtns();
+    scheduleTick();
+  });
+});
+document.getElementById("btn-incident").addEventListener("click", ()=>{
+  const enabledAgents = agents.filter(a=>a.enabled);
+  if(!enabledAgents.length) return;
+  const victim = pick(enabledAgents);
+  victim.health = clamp(victim.health - (25 + Math.random()*20), 5, 99);
+  victim.trust = clamp(victim.trust - 8, 40, 99);
+  victim.status = deriveStatus(victim);
+  recomputeDerived();
+  checkThresholds();
+  pushLog({ from: victim.name, to:"All Agents", text: pick(AGENT_PHRASES[victim.id].critical), tone:"critical" });
+  pushLog({ from:"TerraTwin Core", to:"All Agents", text:`Incident injected: ${victim.name} destabilized. Re-routing dependent workflows.`, tone:"warn" });
+  renderAll();
+  if(detailAgentId===victim.id) renderDetail(victim.id);
+});
+document.getElementById("btn-reset").addEventListener("click", ()=>{
+  initState();
+  renderAll();
+  renderAlerts();
+  renderConsole();
+  if(detailAgentId) renderDetail(detailAgentId);
+  pushLog({ from:"TerraTwin Core", to:"All Agents", text:"Simulation state reset to baseline.", tone:"info" });
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function initState(){
+  agents = freshAgents();
+  waterLevel = 58; villageHealth = 82; weatherTemp = 31; rainfallAlertLevel = "MODERATE"; population = 4812;
+  alerts = [];
+  selectedAgent = null;
+  rainfallData.actual = [12,8,4,2,0,1,3]; rainfallData.predicted = [14,10,6,5,3,4,7];
+  cropData.scores = [92,81,74,58,31];
+  diseaseData.values = [38,22,18,14,8];
+  attendanceData.rate = [94,92,89,84,81,86];
+}
+function init(){
+  initState();
+  renderAll();
+  renderMapZones();
+  buildCharts();
+  checkThresholds();
+  renderPlayPauseBtn();
+  renderSpeedBtns();
+
+  ["Welcome operator. TerraTwin grid online — 5/5 agents synced to live sensors.",
+   "Nightly model sync complete.",
+   "All zones reporting nominal baseline conditions."].forEach((t,i)=>
+    pushLog({ from:"TerraTwin Core", to:"All Agents", text:t, tone:"info" })
+  );
+
+  scheduleTick();
+
+  setInterval(()=>{
+    uptimeSec += SIM.running ? SIM.speed : 0;
+    renderHeaderStats();
+  }, 1000);
+
+  safeIcons();
+}
+try {
+  init();
+} catch(e){
+  console.error("TerraTwin init failed:", e);
+}
+</script>
+</body>
+</html>
